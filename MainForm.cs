@@ -541,9 +541,9 @@ namespace SourceCollector
                     else if (line.StartsWith("IgnoreHidden="))
                         chkIgnoreHidden.Checked = line.Substring(13).Trim() == "1";
                     else if (line.StartsWith("CopyFiles="))
-                        chkCopyFiles.Checked = line.Substring(9).Trim() == "1";
+                        chkCopyFiles.Checked = line.Substring(10).Trim() == "1";
                     else if (line.StartsWith("GenerateIndex="))
-                        chkGenerateIndex.Checked = line.Substring(13).Trim() == "1";
+                        chkGenerateIndex.Checked = line.Substring(14).Trim() == "1";
                     // 注意：历史中不保存 onlyDirectories 状态，默认 false
                 }
                 SetWatermarkIfNeeded();
