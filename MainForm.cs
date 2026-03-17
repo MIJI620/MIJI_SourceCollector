@@ -67,7 +67,7 @@ namespace SourceCollector
             // 修改：缩短文本框宽度，为新增复选框腾出空间
             txtSkip = new TextBox { Location = new Point(controlX, 12 + rowHeight * 2), Size = new Size(textBoxWidth - 160, 25) };
             chkEnableSkip = new CheckBox { Text = "启用屏蔽", Location = new Point(buttonX - 160, 10 + rowHeight * 2), Size = new Size(80, 30), Checked = false };
-            chkIgnoreHidden = new CheckBox { Text = "忽视隐藏", Location = new Point(buttonX - 80, 10 + rowHeight * 2), Size = new Size(90, 30), Checked = true };
+            chkIgnoreHidden = new CheckBox { Text = "忽视隐藏", Location = new Point(buttonX - 80, 10 + rowHeight * 2), Size = new Size(80, 30), Checked = true };
             // 新增：转txt文件复选框
             chkConvertToTxt = new CheckBox { Text = "转txt文件", Location = new Point(buttonX, 10 + rowHeight * 2), Size = new Size(80, 30), Checked = false };
             toolTip.SetToolTip(chkConvertToTxt, "将复制出的文件后缀名统一转为 .txt");
@@ -474,10 +474,10 @@ namespace SourceCollector
                 bool last = (i == allItems.Count - 1);
                 string itemName = item.Name;
 
-                // 修改：如果是文件且存在重命名映射，则显示原名（原名:新名）
+                // 修改：如果是文件且存在重命名映射，则显示原名（现用文件名:新名）
                 if (item is FileInfo file && renameMap != null && renameMap.TryGetValue(file.FullName, out string? newName))
                 {
-                    itemName = $"{item.Name} ({item.Name}:{newName})";
+                    itemName = $"{item.Name} (现用文件名:{newName})";
                 }
 
                 sb?.AppendLine(prefix + (last ? "└── " : "├── ") + itemName);
