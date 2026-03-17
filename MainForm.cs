@@ -27,6 +27,7 @@ namespace SourceCollector
         private CheckBox chkCopyFiles = null!;      // 目标文件
         private CheckBox chkGenerateIndex = null!;  // 目录文件
         private CheckBox chkOnlyDirectories = null!; // 仅文件夹
+        private CheckBox chkConvertToTxt = null!;    // 新增：转txt文件
 
         // 水印文本
         private const string ExtWatermark = "如 .cs|.xaml，\\开头表示排除";
@@ -63,9 +64,13 @@ namespace SourceCollector
             // 屏蔽文件行
             Label lblSkip = new Label { Text = "屏蔽名称：", Location = new Point(labelX, 15 + rowHeight * 2), Size = new Size(100, 30) };
             toolTip.SetToolTip(lblSkip, "多个屏蔽名请用竖线 | 分隔");
-            txtSkip = new TextBox { Location = new Point(controlX, 12 + rowHeight * 2), Size = new Size(textBoxWidth - 80, 25) };
-            chkEnableSkip = new CheckBox { Text = "启用屏蔽", Location = new Point(buttonX - 80, 10 + rowHeight * 2), Size = new Size(80, 30), Checked = false };
-            chkIgnoreHidden = new CheckBox { Text = "忽视隐藏", Location = new Point(buttonX, 10 + rowHeight * 2), Size = new Size(90, 30), Checked = true };
+            // 修改：缩短文本框宽度，为新增复选框腾出空间
+            txtSkip = new TextBox { Location = new Point(controlX, 12 + rowHeight * 2), Size = new Size(textBoxWidth - 160, 25) };
+            chkEnableSkip = new CheckBox { Text = "启用屏蔽", Location = new Point(buttonX - 160, 10 + rowHeight * 2), Size = new Size(80, 30), Checked = false };
+            chkIgnoreHidden = new CheckBox { Text = "忽视隐藏", Location = new Point(buttonX - 80, 10 + rowHeight * 2), Size = new Size(90, 30), Checked = true };
+            // 新增：转txt文件复选框
+            chkConvertToTxt = new CheckBox { Text = "转txt文件", Location = new Point(buttonX, 10 + rowHeight * 2), Size = new Size(80, 30), Checked = false };
+            toolTip.SetToolTip(chkConvertToTxt, "将复制出的文件后缀名统一转为 .txt");
 
             // 目标后缀行
             Label lblExt = new Label { Text = "目标后缀：", Location = new Point(labelX, 15 + rowHeight * 3), Size = new Size(100, 30) };
@@ -91,10 +96,11 @@ namespace SourceCollector
                 Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right
             };
 
+            // 修改：添加 chkConvertToTxt 到控件集合
             this.Controls.AddRange(new Control[] {
                 lblTarget, txtTarget, btnTargetBrowse,
                 lblOutput, txtOutput, btnOutputBrowse,
-                lblSkip, txtSkip, chkEnableSkip, chkIgnoreHidden,
+                lblSkip, txtSkip, chkEnableSkip, chkIgnoreHidden, chkConvertToTxt, // 新增
                 lblExt, txtExtensions, chkCopyFiles, chkGenerateIndex, chkOnlyDirectories, btnProcess,
                 txtLog
             });
@@ -110,12 +116,14 @@ namespace SourceCollector
                 chkGenerateIndex.Enabled = false;
                 txtExtensions.Enabled = false;
                 txtExtensions.Text = ""; // 清空后缀，因为无效
+                chkConvertToTxt.Enabled = false; // 新增：仅文件夹模式下禁用转txt
             }
             else
             {
                 chkCopyFiles.Enabled = true;
                 chkGenerateIndex.Enabled = true;
                 txtExtensions.Enabled = true;
+                chkConvertToTxt.Enabled = true; // 新增：恢复启用
                 SetWatermarkIfNeeded(); // 恢复水印
             }
         }
@@ -184,6 +192,7 @@ namespace SourceCollector
             bool copyFiles = chkCopyFiles.Checked;
             bool generateIndex = chkGenerateIndex.Checked;
             bool onlyDirectories = chkOnlyDirectories.Checked;
+            bool convertToTxt = chkConvertToTxt.Checked; // 新增
 
             // 验证
             if (string.IsNullOrEmpty(targetDir) || !Directory.Exists(targetDir))
@@ -283,8 +292,9 @@ namespace SourceCollector
             {
                 try
                 {
+                    // 修改：传递 convertToTxt 参数
                     ProcessDirectory(targetDir, outputDir, includeExts, excludeExts, skipNames,
-                                     ignoreHidden, copyFiles, generateIndex, matchAll, onlyDirectories);
+                                     ignoreHidden, copyFiles, generateIndex, matchAll, onlyDirectories, convertToTxt);
                 }
                 catch (Exception ex)
                 {
@@ -295,15 +305,16 @@ namespace SourceCollector
             AppendLog("处理完成。");
             btnProcess.Enabled = true;
 
-            // 保存历史（仅在UI模式，不包含-D状态？这里保持原有保存逻辑）
-            SaveHistory(targetDir, outputDir, extInput, skipInput, enableSkip, ignoreHidden, copyFiles, generateIndex);
+            // 保存历史（新增 convertToTxt）
+            SaveHistory(targetDir, outputDir, extInput, skipInput, enableSkip, ignoreHidden, copyFiles, generateIndex, convertToTxt);
         }
 
-        // 处理目录（UI版）
+        // 修改：添加 convertToTxt 参数
         private void ProcessDirectory(string targetDir, string outputDir,
             HashSet<string> includeExts, HashSet<string> excludeExts,
             HashSet<string> skipNames, bool ignoreHidden,
-            bool copyFiles, bool generateIndex, bool matchAll, bool onlyDirectories)
+            bool copyFiles, bool generateIndex, bool matchAll, bool onlyDirectories,
+            bool convertToTxt)
         {
             var root = new DirectoryInfo(targetDir);
             string rootName = root.Name + "/";
@@ -323,12 +334,23 @@ namespace SourceCollector
             {
                 foreach (string src in filesToCopy)
                 {
-                    string dest = GetUniqueDestinationPath(outputDir, src);
+                    string dest;
+                    // 新增：若 convertToTxt 为 true，构造虚拟路径强制使用 .txt 扩展名
+                    if (convertToTxt)
+                    {
+                        string virtualSrc = Path.Combine(Path.GetDirectoryName(src) ?? "",
+                                                          Path.GetFileNameWithoutExtension(src) + ".txt");
+                        dest = GetUniqueDestinationPath(outputDir, virtualSrc);
+                    }
+                    else
+                    {
+                        dest = GetUniqueDestinationPath(outputDir, src);
+                    }
                     string finalName = Path.GetFileName(dest);
                     renameMap[src] = finalName;
                     try
                     {
-                        File.Copy(src, dest, overwrite: false); // 我们已保证唯一，所以 overwrite false 安全
+                        File.Copy(src, dest, overwrite: false);
                         copied++;
                     }
                     catch (Exception ex)
@@ -354,7 +376,6 @@ namespace SourceCollector
                 string treeFile = Path.Combine(outputDir, "目录.txt");
                 try
                 {
-                    // 使用无BOM的UTF-8
                     File.WriteAllText(treeFile, treeBuilder.ToString(), new UTF8Encoding(false));
                     AppendLog($"目录树已保存至：{treeFile}");
                 }
@@ -453,10 +474,10 @@ namespace SourceCollector
                 bool last = (i == allItems.Count - 1);
                 string itemName = item.Name;
 
-                // 如果是文件且存在重命名映射，则显示原名+新名
+                // 修改：如果是文件且存在重命名映射，则显示原名（原名:新名）
                 if (item is FileInfo file && renameMap != null && renameMap.TryGetValue(file.FullName, out string? newName))
                 {
-                    itemName = $"{item.Name} ({newName})";
+                    itemName = $"{item.Name} ({item.Name}:{newName})";
                 }
 
                 sb?.AppendLine(prefix + (last ? "└── " : "├── ") + itemName);
@@ -507,7 +528,7 @@ namespace SourceCollector
                 txtLog.AppendText(message + Environment.NewLine);
         }
 
-        // 从 history.ini 加载配置
+        // 从 history.ini 加载配置（新增 ConvertToTxt）
         private void LoadHistory()
         {
             string historyPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "history.ini");
@@ -517,6 +538,7 @@ namespace SourceCollector
                 chkCopyFiles.Checked = true;
                 chkGenerateIndex.Checked = true;
                 chkOnlyDirectories.Checked = false;
+                chkConvertToTxt.Checked = false; // 新增默认
                 return;
             }
 
@@ -544,7 +566,8 @@ namespace SourceCollector
                         chkCopyFiles.Checked = line.Substring(10).Trim() == "1";
                     else if (line.StartsWith("GenerateIndex="))
                         chkGenerateIndex.Checked = line.Substring(14).Trim() == "1";
-                    // 注意：历史中不保存 onlyDirectories 状态，默认 false
+                    else if (line.StartsWith("ConvertToTxt=")) // 新增
+                        chkConvertToTxt.Checked = line.Substring(12).Trim() == "1";
                 }
                 SetWatermarkIfNeeded();
             }
@@ -554,12 +577,13 @@ namespace SourceCollector
                 chkCopyFiles.Checked = true;
                 chkGenerateIndex.Checked = true;
                 chkOnlyDirectories.Checked = false;
+                chkConvertToTxt.Checked = false; // 新增
             }
         }
 
-        // 保存当前配置到 history.ini
+        // 保存当前配置到 history.ini（新增 ConvertToTxt）
         private void SaveHistory(string target, string output, string extensions, string skipPatterns,
-            bool enableSkip, bool ignoreHidden, bool copyFiles, bool generateIndex)
+            bool enableSkip, bool ignoreHidden, bool copyFiles, bool generateIndex, bool convertToTxt)
         {
             string historyPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "history.ini");
             try
@@ -574,7 +598,7 @@ namespace SourceCollector
                 writer.WriteLine($"IgnoreHidden={(ignoreHidden ? 1 : 0)}");
                 writer.WriteLine($"CopyFiles={(copyFiles ? 1 : 0)}");
                 writer.WriteLine($"GenerateIndex={(generateIndex ? 1 : 0)}");
-                // 不保存 onlyDirectories，因为它是临时模式
+                writer.WriteLine($"ConvertToTxt={(convertToTxt ? 1 : 0)}"); // 新增
             }
             catch { /* 忽略写入错误 */ }
         }
